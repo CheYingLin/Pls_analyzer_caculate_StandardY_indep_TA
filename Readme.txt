@@ -4,5 +4,9 @@
 更動crossvalidation的數據，以標準化的值進行R^2與explained_variance計算
 FAE版->pls_analyzer.py
 line103~108:standard Scaler有問題應該是不需要的
+可產生檢量線有TA、無TA都可設定
+增加回測分數比較RMSE,MAE,MAPE
+增加PCA分析推薦頻譜spectrum選擇
+增加VIP(varible importantance in projection)分析PLSR裡頻譜的權重比例(視覺化)
 
 
