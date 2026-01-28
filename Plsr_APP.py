@@ -10,7 +10,7 @@ from sklearn.preprocessing import PowerTransformer, StandardScaler
 from typing import Tuple, List, Dict, Any, Optional
 from Cross_validation import run_cross_validation_analysis
 from Backtesting import run_multi_model_backtest_NEWII
-from Plotgrop import run_plot_group_new,run_plot_group_scatter_new ,run_plot_display_multi_algorithm_results,run_plot_display_indepY_algorithm_results
+from Plotgrop import run_plot_group,run_plot_group_new,run_plot_group_newII,run_plot_group_scatter_new ,run_plot_display_multi_algorithm_results,run_plot_display_indepY_algorithm_results
 from Plotgrop import run_create_prediction_comparison_chart, run_plot_backtest_results,run_plot_backtest_results_with_score
 # 導入新的分析模組
 from Principal_Component_Analysis import principal_component_analysis
@@ -287,7 +287,7 @@ def run_selected(X_tmp, time_window, df_timeRef,training_has_ta):
 pca = principal_component_analysis()
 plsr = PLSR_Analysis()
 # file_path = r"C:\Users\Jason.lin\Desktop\workfile\20260107_luna微蝕data\luna微蝕data\luna微蝕data\Original_backtest_file.xlsx"#luna MW_data
-file_path = r"C:\Users\Jason.lin\Desktop\workfile\20260116Luna_電鍍銅\Luna_電鍍銅all_data_for_Jason\all_data_for_Jason\25024Original_backtest_file_20251221_2CSV.csv"#luna MW_data電鍍
+file_path = r"C:\Users\Jason.lin\Desktop\workfile\20260127_超幹\超幹data\Original_backtest_file.csv"#luna MW_data電鍍
 #=================================
 ParquetFolder  = 'data_in_parquetFolder'
 # 分離路徑與檔名
@@ -326,15 +326,15 @@ df['Time'] = pd.to_datetime(df['Time'])
 #                             sheet_name="工作表1")#luna concentration
 # df_timeRef = pd.read_excel( r"C:\Users\Jason.lin\Desktop\workfile\20260107_luna微蝕data\luna微蝕data\luna微蝕data\concentration_list_亞智luna25026_sa_backtest.xlsx",
 #                             sheet_name="工作表3")#luna concentration
-df_timeRef = pd.read_excel( r"C:\Users\Jason.lin\Desktop\workfile\20260116Luna_電鍍銅\Luna_電鍍銅all_data_for_Jason\all_data_for_Jason\concentration_list_Luna電鍍_2setupSA.xlsx",
-                            sheet_name="工作表4")
+df_timeRef = pd.read_excel( r"C:\Users\Jason.lin\Desktop\workfile\20260127_超幹\超幹data\concentration_list_超幹SA.xlsx",
+                            sheet_name="工作表1")
 #luna MW_data電鍍
 # ==================
 df_timeRef["Time"] = (df_timeRef["Time"].astype(str).str.replace(" PM", "", regex=False).str.replace(" AM", "", regex=False))
 df_timeRef["Time"] = df_timeRef["Time"].astype(str).str.strip()
 df_timeRef["Time"] = pd.to_datetime(df_timeRef["Time"],format="mixed",errors="coerce")
 #==============Paremeter Setting==============
-train_ratio = 0.8 #1 for all
+train_ratio = 1 #1 for all
 Training_has_ta = False # True,False
 
 split_ratio_idx = int(len(df_timeRef) * train_ratio)
@@ -343,7 +343,7 @@ print(split_ratio_idx,len(df_timeRef)-split_ratio_idx,len(df_timeRef))
 #observing dataset
 # df.head()
 Concentration_slec_colnum = 2
-Concentration_slec = np.array([1,2,3]) #要看幾種濃度液體
+Concentration_slec = np.array([1]) #要看幾種濃度液體
 # Concentration_slec_num = 3 #要看幾種濃度液體
 timedata = df.iloc[:,1:2]
 # time_window = [timedelta(minutes=5), timedelta(minutes=0)]
@@ -364,26 +364,30 @@ comp_indices = [comp_cols.index(name) for name in comp_cols if name in comp_cols
 
 # Y.head()
 #==============plot part I Rawdatas################
-# prefix = 'MW'#-MW_NON
-# run_plot_group_new(prefix,timedata, df_timeRef['NH4OH'], run_selected(df, time_window, df_timeRef))
-# run_plot_group_scatter_new(prefix,timedata, df_timeRef[comp_cols[2]], run_selected(df, time_window, df_timeRef))
+prefix = 'MW'#-MW_NON
+run_plot_group(prefix,timedata,time_window, df_timeRef,df,Training_has_ta)# 滴定濃度穩定'時間內'的通道光譜強度
+# run_plot_group_newII(prefix,timedata,df_timeRef['set'], run_selected(df, time_window, df_timeRef,Training_has_ta))#各滴定通道與強度圖(加工圖)
+
+# run_plot_group_new(prefix,timedata, df_timeRef['S1'], run_selected(df, time_window, df_timeRef,Training_has_ta))#各通道強度MW與濃度趨勢圖
+# run_plot_group_scatter_new(prefix,timedata, df_timeRef[comp_cols[0]], run_selected(df, time_window, df_timeRef,Training_has_ta))#各通道MW強度與濃度趨勢圖(點圖)
 #==================================################
 # X_tmp = df.iloc[:,7+72:7+36+72].values
 # X_tmp = df.iloc[:,7+72:7+36+72]
 channel_unselect = []
+channel_unselect = [
+        np.array([7,8,9,10,12,13,14,15,16,17,18,20,21,22,23,24,29,30,33])
+                    ]##superFXXX_observation可見光ch7-12 
 # channel_unselect = [
-#         np.array([5,6,7,8,9,10,11,12,13,14,15,20,21,22,23,24,30,31,32,34,35,36])
-#                     ]
+#         np.array([8,10,12,13,14,15,16,17,18,20,21,22,23,24,29,30,33])
+#                     ]#superFXXX_Computer
 # channel_unselect = [
-#         np.array([1,2,3,5,8,12,16,19,22,23,24]),
-#         np.array([1,2,3,5,8,12,16,19,22,23,24]),
+#         np.array([8,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36])
+#                     ]#superFXXX_EYES
+# channel_unselect = [
+#         np.array([1,2,3,5,6,7,8,12,14,19,20,21,22,23,24,26,27,28,29,31,32]),
+#         np.array([1,2,3,5,7,8,12,19,20,21,22,23,24,26,27,28,29,31,32]),
 #         np.array([1,2,3,5,8,12,16,19,22,23,24])
 #                     ]
-channel_unselect = [
-        np.array([1,2,3,5,7,8,12,14,19,20,21,22,23,24,26,27,28,29,31,32]),
-        np.array([1,2,5,7,8,12,19,20,21,22,23,24,26,27,28,29,31,32]),
-        np.array([1,2,3,5,8,12,16,19,22,23,24])
-                    ]
 # channel_unselect = [
 #         np.array([5,6,9,10,11,12,22,23,24,30]),
 #         np.array([5,6,9,10,11,12,22,23,24,30]),
@@ -451,15 +455,15 @@ multi_algorithm_results["算法X"] = {
 
 #==============plot part II PLS predict################
 
-# run_plot_display_multi_algorithm_results(multi_algorithm_results)
-# run_create_prediction_comparison_chart( multi_algorithm_results,Y_scaler)
+run_plot_display_multi_algorithm_results(multi_algorithm_results)
+run_create_prediction_comparison_chart( multi_algorithm_results,Y_scaler)
 run_plot_display_indepY_algorithm_results(multi_algorithm_results)
 #==============Backtesting Part===========
 model_name = "算法X"
 factor_no_scaleY = multi_algorithm_results[model_name]['cv']['best_factor']
 # factor = [2,2] # select by user choice SC1
 # factor = [5,3,6] # select by user choice Luna
-factor = [5,7,1] # select by user choice Luna電鍍
+factor = [1] # select by user choice Luna電鍍
 Output_calibrationYesorNo = False #False & True
 #==============plot part III PLS predict################
 run_create_prediction_comparison_chart( multi_algorithm_results,Y_scaler, factor)

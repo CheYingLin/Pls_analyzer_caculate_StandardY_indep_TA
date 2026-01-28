@@ -201,6 +201,7 @@ def cross_validate_single_factor_NEW( X: np.ndarray, ch_unselect, Y_standardized
     # 計算原始尺度指標（R²、RMSE）
     r2_original = []
     rmse_original = []
+    rmse_std = []
     
     for i in range(len(comp_cols)):
         try:
@@ -210,6 +211,9 @@ def cross_validate_single_factor_NEW( X: np.ndarray, ch_unselect, Y_standardized
             
             # RMSE（原始尺度）
             rmse = np.sqrt(np.mean((y_true_standardized_original [:, i] - y_pred_standardized_original[:, i]) ** 2))
+            #運算邏輯要確認先除在開根號??
+            rmse2 = np.mean(np.sqrt((y_true_standardized_original [:, i] - y_pred_standardized_original[:, i]) ** 2))
+            rmse_std.append(np.std(np.sqrt((y_true_standardized_original [:, i] - y_pred_standardized_original[:, i]) ** 2), ddof=1))
             rmse_original.append(rmse if np.isfinite(rmse) else 0.0)
         except Exception as e:
             print(f"警告：成分 {comp_cols[i]} 計算失敗: {e}")
@@ -232,6 +236,7 @@ def cross_validate_single_factor_NEW( X: np.ndarray, ch_unselect, Y_standardized
         # 主要結果（原始尺度）- 用於所有業務指標
         'mean_cv_scores_original': r2_original,
         'rmse_means': rmse_original,
+        'rmse_std': rmse_std,
         'all_y_true_original': y_true_original,
         'all_y_pred_original': y_pred_original,
         
@@ -429,7 +434,8 @@ def run_cross_validation_analysis( X: np.ndarray, ch_unselect, Y: np.ndarray,
         
         # 確保最大Factor不超過特徵數量
         n_features = X_valid.shape[1]
-        max_factor = min(max_factor-2, n_features)
+        # max_factor = min(max_factor-2, n_features)
+        max_factor = min(max_factor, n_features)
         
         if max_factor < 1:
             raise ValueError(f"無法進行分析：數據點數 ({n_samples}) 或特徵數 ({n_features}) 不足")

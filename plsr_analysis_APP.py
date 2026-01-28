@@ -25,8 +25,8 @@ class PLSR_Analysis:
         """確定最大Factor數量（與交叉驗證邏輯一致）"""
         if n_sample < 16:
             max_factor = max(1, n_sample - 2)
-        
-        max_factor = min(max_factor-2, n_features)
+        max_factor = min(max_factor, n_features)
+        # max_factor = min(max_factor-2, n_features)
         
         if max_factor < 1:
             raise ValueError(f"無法進行分析：數據點數 ({n_sample}) 或特徵數 ({n_features}) 不足")

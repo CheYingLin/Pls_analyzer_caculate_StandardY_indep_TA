@@ -4,6 +4,8 @@ import os
 import math
 import matplotlib.pyplot as plt
 import matplotlib
+from scipy.signal import savgol_filter
+from scipy.interpolate import make_interp_spline
 from sklearn.metrics import mean_squared_error,mean_absolute_error, r2_score
 
 matplotlib.rc('font', family='serif', serif=['ABC', 'MingLiU']) 
@@ -16,18 +18,53 @@ def regression_score(y_true, y_pred):
     mape = np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100
     return rmse, mae, mape
 
-def run_plot_group( prefix,timedata, merged_df):
-    fig, axs = plt.subplots(6, 6, figsize=(17.5, 9.5),dpi = 100)
-    for i in range(36):
-        # col = f"{prefix}{i+1}"
-        col = f"{i+1}{prefix}"
-        if col in merged_df.columns:
-            ax = axs[i // 6, i % 6]
-            y_data = merged_df[col]
-            x_data = timedata["time"] if "time" in timedata.columns else range(len(y_data))
-            ax.plot(x_data, y_data)
+def run_plot_group( prefix,timedata,time_window, df_timeRef,X_tmp,Training_has_ta):
+    plots_per_page = 4
+    rows, cols = 2, 2
+
+    figs = []  # 收集 figure
+    page = len(df_timeRef)//plots_per_page
+    time_before = pd.Timedelta(minutes=time_window[0])
+    time_after = pd.Timedelta(minutes=time_window[1])
+    fig, axs = plt.subplots(rows, cols, figsize=(17.5, 9.5),dpi = 80)
+    axs = axs.flatten()
+    # 找到時間窗口範圍內的所有數據點（非對稱）
+    for i, t in enumerate(df_timeRef['Time']):
+        idx = i % plots_per_page
+        if i >= plots_per_page :
+            fig, axs = plt.subplots(rows, cols, figsize=(17.5, 9.5),dpi = 80)
+            axs = axs.flatten()
+        time_mask = ( pd.to_datetime(X_tmp['Time']) >= t - time_before) & ( pd.to_datetime(X_tmp['Time']) <= t + time_after)
+        mw_row = []
+        matched_rows = X_tmp[time_mask]  
+        for k in range(1, 37):
+            mw_col = f"{k}-MW_NON"
+            if mw_col in matched_rows.columns:
+                mw_values = matched_rows[mw_col].dropna()
+                mw_row.append(mw_values if not mw_values.empty else np.nan)
+            else:
+                mw_row.append(np.nan)      
+        # for page in range(plots_per_page):
+        #     fig, axs = plt.subplots(rows, cols, figsize=(17.5, 9.5),dpi = 80)
+        #     axs = axs.flatten()
+        #     # for i in range(plots_per_page):
+        #     # idx = page * plots_per_page + i
+        #     idx = i % plots_per_page
+        #     if idx >= plots_per_page :
+        #         break
+        col = f"Concentration-{i+1}"
+        ax = axs[idx]
+        for i in range(np.array(mw_row).shape[1]): # 一個時間點約有4~10條光
+            y = np.array(mw_row)[:,i]
+            x = range(np.array(mw_row).shape[0])
+            # x = timedata["time"] if "time" in timedata.columns else range(len(y))#data time
+            ax.plot(x, y,label=f'Sample-{i}')
+            ax.set_xlabel('Channel', fontsize=12)
+            ax.set_ylabel('Intensity', fontsize=12)
+            ax.grid(True, alpha=0.8)
             ax.set_title(col)
-            ax.tick_params(axis='x', rotation=45)
+            ax.legend(fontsize=10)
+
     plt.tight_layout()
     plt.show()
 
@@ -53,8 +90,8 @@ def run_plot_group_new( prefix,timedata, comp_cols,merged_df):
 
             # if col in merged_df.columns:
             y = merged_df[:,idx]
-            x = timedata["time"] if "time" in timedata.columns else range(len(y))#data time
-            # x = comp_cols
+            # x = timedata["time"] if "time" in timedata.columns else range(len(y))#data time
+            x = comp_cols
 
             ax.plot(x, y)
             ax.set_title(col)
@@ -65,6 +102,43 @@ def run_plot_group_new( prefix,timedata, comp_cols,merged_df):
 
     # 🔥 一次顯示全部
     plt.show()
+def run_plot_group_newII( prefix,timedata, comp_cols,merged_df):
+    fig, ax = plt.subplots(figsize=(10, 5))
+    for i in range(len(merged_df)):
+        y = merged_df[i,:]
+        x = timedata["time"] if "time" in timedata.columns else range(len(y))#data time
+        #後處理  讓數據平滑不顯現出原來模樣
+        #I
+        # window = 2
+        # y_smooth = np.convolve(y, np.ones(window)/window, mode='same')
+        # II
+        # y_smooth = savgol_filter(y, window_length=10, polyorder=5)
+        # III
+        x = np.asarray(x)
+        y = np.asarray(y)
+
+        x_new = np.linspace(x.min(), x.max(), len(x) * 10)
+        spline = make_interp_spline(x, y, k=3)
+        y_smooth = spline(x_new)
+
+        # 原始點（可選）
+        # ax.plot(x, y, 'o', alpha=0.4)
+
+        ax.plot(x_new, y_smooth, '-', label=f'Set{comp_cols[i]}', linewidth=2, markersize=8)
+        # ax.set_xticks([])
+        # ax.set_yticks([])
+        ax.tick_params(
+                        axis='both',
+                        which='both',
+                        labelbottom=False,
+                        labelleft=False
+                    )
+        ax.grid(True, alpha=0.8)
+        ax.legend(fontsize=10)
+        # ax.set_xlabel(r'$\lambda$'+'(nm)', fontsize=12)
+        ax.set_xlabel('LED-CH(nm)', fontsize=12)
+        ax.set_ylabel('Relative Abeorption Rate', fontsize=12)
+    plt.show()    
 
 def run_plot_group_scatter_new( prefix,timedata, comp_cols,merged_df): 
     import matplotlib.pyplot as plt
@@ -207,21 +281,28 @@ def run_plot_display_indepY_algorithm_results(multi_results):
             # CV EV數據 - 使用total_explained_variance
             cv_ev_data = []
             cv_rms_data = []
+            cv_rms_std_data= []
             for factor in factors:
                 if factor in cv_result['factor_results']:
                     ev = cv_result['factor_results'][factor].get('explained_variance_per_y')
                     rms = cv_result['factor_results'][factor].get('rmse_means')
+                    rms_std = cv_result['factor_results'][factor].get('rmse_std')
                     if ev is None:
                         value = np.nan
                     else:
                         value = ev[idx]
                         rm_value = rms[idx] 
+                        rm_std_value = rms_std[idx]
                     cv_ev_data.append(value)
                     cv_rms_data.append(rm_value)
-
+                    cv_rms_std_data.append(rm_std_value)
                 else:
                     cv_ev_data.append(np.nan) 
                     cv_rms_data.append(np.nan)
+            rmse_min_idx = np.argmin(cv_rms_data) 
+            # 標記最佳Factor參考線            
+            ax.axhline(y=(cv_rms_data[rmse_min_idx]+cv_rms_std_data[rmse_min_idx]), color='orange', linestyle=':', alpha=0.7, linewidth=5, 
+                   label=f'Suggest: {rmse_min_idx+1} ±')     
             # 繪製兩條線
             ax.plot(factors, pls_ev_data, 'o-', label='PLS EV=>R²', linewidth=2, markersize=8, color='blue')
             ax.plot(factors, cv_ev_data, 's--', label='CV EV', linewidth=2, markersize=8, color='red')
@@ -314,7 +395,7 @@ def run_create_prediction_comparison_chart(multi_results,Y_scaler, *args):
             ax.plot([plot_min, plot_max], [plot_min, plot_max], 'k', 
                     linestyle='-', linewidth=1.2, alpha=0.8, label='y=x')
             ax.plot([plot_min, plot_max], pls_XY_line_slpoe*np.array([plot_min, plot_max])+pls_XY_line_sintecept, 'r', 
-                    linestyle=':', linewidth=1.2, alpha=0.8, label='y=x')
+                    linestyle=':', linewidth=1.2, alpha=0.8, label=f'y={pls_XY_line_slpoe:1.1f}x+{pls_XY_line_sintecept:1.1f}')
             
             ax.set_xlim(plot_min, plot_max)
             ax.set_ylim(plot_min, plot_max)
@@ -335,19 +416,44 @@ def run_create_prediction_comparison_chart(multi_results,Y_scaler, *args):
             bias = np.mean(cv_y_pred - cv_Y_true[:,idx], axis=0)
             print(bias)
             # 添加統計信息
-            text = (
-                    f'PLS      : R²={pls_r2:6.3f}, rmse={pls_rms:6.3f}, mae={pls_mae:6.3f}\n'
-                    f'PLS_noStd: R²={pls_r2_no_scaleY:6.3f}, rmse={pls_rms_no_scaleY:6.3f}, mae={pls_mae_no_scaleY:6.3f}\n'
-                    f'CV       : R²={cv_r2:6.3f}, rmse={cv_rms:6.3f}, mae={cv_mae:6.3f}\n'
-                    f'CV_noStd : R²={cv_r2_no_scaleY:6.3f}, rmse={cv_rms_no_scaleY:6.3f}, mae={cv_mae_no_scaleY:6.3f}'
+            # I
+            # text = (
+            #         f'PLS      : R²={pls_r2:6.3f}, rmse={pls_rms:6.3f}, mae={pls_mae:6.3f}\n'
+            #         f'PLS_noStd: R²={pls_r2_no_scaleY:6.3f}, rmse={pls_rms_no_scaleY:6.3f}, mae={pls_mae_no_scaleY:6.3f}\n'
+            #         f'CV       : R²={cv_r2:6.3f}, rmse={cv_rms:6.3f}, mae={cv_mae:6.3f}\n'
+            #         f'CV_noStd : R²={cv_r2_no_scaleY:6.3f}, rmse={cv_rms_no_scaleY:6.3f}, mae={cv_mae_no_scaleY:6.3f}'
+            #     )
+            # ax.text(0.05, 0.95, text, 
+            #         transform=ax.transAxes, va='top',ha='left',fontfamily='monospace',
+            #         bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+            # II
+            lines = [
+                    (f'PLS      : R²={pls_r2:6.3f}, rmse={pls_rms:6.3f}, mae={pls_mae:6.3f}', 'black'),
+                    (f'PLS_noStd: R²={pls_r2_no_scaleY:6.3f}, rmse={pls_rms_no_scaleY:6.3f}, mae={pls_mae_no_scaleY:6.3f}', 'tab:blue'),
+                    (f'CV       : R²={cv_r2:6.3f}, rmse={cv_rms:6.3f}, mae={cv_mae:6.3f}', 'tab:green'),
+                    (f'CV_noStd : R²={cv_r2_no_scaleY:6.3f}, rmse={cv_rms_no_scaleY:6.3f}, mae={cv_mae_no_scaleY:6.3f}', 'tab:red'),
+                ]
+            y0 = 0.96      # 起始高度（axes 座標）
+            dy = 0.03      # 行距
+            # 先畫一個透明框（只負責背景）
+            ax.text(
+                dy, y0,
+                ' ' * 55 + '\n' * 3,
+                transform=ax.transAxes,
+                va='top', ha='left',
+                bbox=dict(boxstyle="round,pad=0.6", facecolor="white", alpha=0.8)
+            )
+            for i, (line, color) in enumerate(lines):
+                ax.text(
+                    dy, y0 - i * dy, line,
+                    transform=ax.transAxes,
+                    va='top', ha='left',
+                    fontfamily='monospace',
+                    color=color
                 )
-            ax.text(0.05, 0.95, text, 
-                    transform=ax.transAxes, va='top',ha='left',fontfamily='monospace',
-                    bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
-            
             ax.set_title(f'{comp} (Factor {factor})')
-            ax.set_xlabel('參考值')
-            ax.set_ylabel('預測值')
+            ax.set_xlabel('Reference Y')
+            ax.set_ylabel('Predicted Y')
             ax.legend()
             ax.grid(True, alpha=0.3)
         
@@ -580,8 +686,8 @@ def run_plot_backtest_results_with_score(predictions_dict, df_time, comp_cols, d
                     )
             except Exception as e:
                 print(f"無法繪製參考數據: {e}")
-            # 繪製回測切割線
-            ax.plot([ref_time[split_idx],ref_time[split_idx]],[max(Y_pred[:, page]), min(Y_pred[:, page])],linestyle='--',color='k')        
+            # 繪製回測切割線 split_idx-1 避免沒從零開始取
+            ax.plot([ref_time[split_idx-1],ref_time[split_idx-1]],[max(Y_pred[:, page]), min(Y_pred[:, page])],linestyle='--',color='k')        
         #text data prepare
         all_rmse, all_mae, all_mape = regression_score(ref_values,Y_pred[:, page])
         if ref_values[split_idx:].size == 0:

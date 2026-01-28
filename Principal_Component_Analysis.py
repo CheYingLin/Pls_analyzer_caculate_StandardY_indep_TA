@@ -55,7 +55,7 @@ class principal_component_analysis:
             print(f"建議2:剔除通道{(idx_pc2[-10::])+1}")
         return spectra_pca
     
-    def vip(self,factor_result, factor_table, del_idx,Training_has_ta:bool):#VariableImportantceinProjection
+    def vip(self,factor_result, factor_table, del_idx,Training_has_ta:bool):#VariableImportanceinProjection
         vip_scores_all= []
         important_idx_ori_all = []
         important_idx_all = []
