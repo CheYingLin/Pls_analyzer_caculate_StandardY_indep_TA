@@ -1,9 +1,10 @@
 import numpy as np
 import pandas as pd
 import os
+import re
 from datetime import datetime
 
-def run_output_calibration_Excel(X_ori,comp_cols, intercepts, coefs,selected_algorithm,selected_factor):
+def run_output_calibration_Excel(X_ori,comp_cols, intercepts, coefs,selected_algorithm,filename,selected_factor):
     # mw_range_nums = [i + 1 for i in selected_indices]
     if coefs.shape[0] <= 36 :
         spec_cols = [f"MW{i+1}" for i in range(X_ori.shape[1])]
@@ -51,10 +52,11 @@ def run_output_calibration_Excel(X_ori,comp_cols, intercepts, coefs,selected_alg
     timestamp = datetime.now().strftime('%Y%m%d_%H%M')
     timestamp_file = datetime.now().strftime('%Y%m%d_%H%M%S')
     export_folder = os.path.join(FolderOut, f"Calibration_Export_{timestamp}")
+    file = re.split('\.|_',filename)[-2]
     
     os.makedirs(export_folder, exist_ok=True)
     # 12. 定義檔案路徑
-    calibration_filename = f"Calibration_{selected_algorithm}_F{selected_factor}_{timestamp_file}.xlsx"
+    calibration_filename = f"{selected_algorithm}_Calibration_F{selected_factor}_{file}_{timestamp_file}.xlsx"
     # temp_correction_filename = f"TempCorrection_{selected_algorithm}_F{selected_factor}_{timestamp}.xlsx"
     
     calibration_path = os.path.join(export_folder, calibration_filename)

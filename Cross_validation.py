@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.cross_decomposition import PLSRegression
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score,mean_squared_error
 from sklearn.model_selection import KFold, LeaveOneOut
 from sklearn.preprocessing import StandardScaler
 from typing import Tuple, List, Dict, Any, Callable, Optional
@@ -89,14 +89,14 @@ def cross_validate_single_factor_no_scaleY_NEW( result_dict:Dict[str, Any], X: n
         Y_pred_All = []
         Y_val_All = []
         # y_true_standardized_All = [] # for EV運算
-        
+        pls = PLSRegression(n_components=n_components, scale=False)
         for i in range(len(comp_cols)):
             mask = np.ones(X.shape[1], dtype=bool)
-            if not ch_unselect:
+            if any(arr.size == 0 for arr in ch_unselect)or not ch_unselect:
                 pass
             else:
                 mask[ch_unselect[0]] = False  #此處0保留都不可篩選，通道應該是不隨不同濃度液體篩選
-            pls = PLSRegression(n_components=n_components, scale=False)
+            
             pls.fit(X_train[:,mask], Y_train)
             y_pred = pls.predict(X_val[:,mask])
 
@@ -120,7 +120,7 @@ def cross_validate_single_factor_no_scaleY_NEW( result_dict:Dict[str, Any], X: n
 
 def cross_validate_single_factor_NEW( X: np.ndarray, ch_unselect, Y_standardized: np.ndarray, 
                                    Y_original: np.ndarray, n_components: int, 
-                                   comp_cols: List[str]) -> Dict[str, Any]:
+                                   comp_cols: List[str], pred_all_Y) -> Dict[str, Any]:
     # 自動確定CV策略
     cv_object, cv_type, n_folds = determine_cv_strategy(X.shape[0])
     
@@ -129,6 +129,7 @@ def cross_validate_single_factor_NEW( X: np.ndarray, ch_unselect, Y_standardized
     y_pred_list = []
     y_pred_standardized_list = []# for EV運算
     y_true_standardized_list = []# for EV運算
+    rmse_StdY_list = [] #算全部CV的RMSE
     cv_pls_model_list = []
     # 執行累積交叉驗證循環
     for train_idx, val_idx in cv_object.split(X):
@@ -160,36 +161,61 @@ def cross_validate_single_factor_NEW( X: np.ndarray, ch_unselect, Y_standardized
         Y_val_All = []
         # y_true_standardized_All = [] # for EV運算
         y_pred_standardized_All = [] # for EV運算
+        rmse_StdY_folds= [] #算RMSE
         cv_pls_model_All = []
-        for i in range(len(comp_cols)):
-            mask = np.ones(X.shape[1], dtype=bool)
-            if not ch_unselect:
-                pass
-            else:
-                mask[ch_unselect[i]] = False  #此處i保留都可篩選，通道應該是idep隨不同濃度液體篩選
+        if pred_all_Y:
             pls = PLSRegression(n_components=n_components, scale=False)
-            pls.fit(X_train[:,mask], Y_train_std[:, i])
-            y_pred_std = pls.predict(X_val[:,mask]).ravel()
-
-            y_pred = scalers_y[i].inverse_transform(
-                y_pred_std.reshape(-1, 1)
-            ).ravel()
-            
-            Y_pred_All.append(y_pred)
-            Y_val_All.append(Y_val[:, i]) 
-            y_pred_standardized_All.append(y_pred_std)
+            for i in range(len(comp_cols)):
+                mask = np.ones(X.shape[1], dtype=bool)
+                if any(arr.size == 0 for arr in ch_unselect)or not ch_unselect:  #此處保留都不可篩選，通道應該是不隨不同濃度液體篩選
+                    pass
+                else:
+                    mask[ch_unselect[0]] = False  
+                pls.fit(X_train[:,mask], Y_train_std)
+                y_pred_std = pls.predict(X_val[:,mask]).ravel()
+                y_pred = scalers_y[i].inverse_transform(
+                        y_pred_std[i].reshape(-1, 1)
+                    ).ravel()
+                
+                Y_pred_All.append(y_pred)
+                Y_val_All.append(Y_val[:, i])
+                y_pred_standardized_All.append(y_pred_std[i])
+                rmse_StdY_folds.append(np.sqrt(mean_squared_error(Y_val_std[:,i], y_pred_std[i:i+1]))) 
             cv_pls_model_All.append(pls)
+
+        else:         
+            for i in range(len(comp_cols)):
+                mask = np.ones(X.shape[1], dtype=bool)
+                if not ch_unselect or ch_unselect[i].size==0:
+                    pass
+                else:
+                    mask[ch_unselect[i]] = False  #此處i保留都可篩選，通道應該是idep隨不同濃度液體篩選
+                pls = PLSRegression(n_components=n_components, scale=False)
+                pls.fit(X_train[:,mask], Y_train_std[:, i])
+                y_pred_std = pls.predict(X_val[:,mask]).ravel()
+
+                y_pred = scalers_y[i].inverse_transform(
+                    y_pred_std.reshape(-1, 1)
+                ).ravel()
+                
+                Y_pred_All.append(y_pred)
+                Y_val_All.append(Y_val[:, i]) 
+                y_pred_standardized_All.append(y_pred_std)
+                rmse_StdY_folds.append(np.sqrt(mean_squared_error(Y_val_std[:,i], y_pred_std)))
+                cv_pls_model_All.append(pls)
 
         y_pred_list_temp = np.vstack(Y_pred_All) 
         y_val_list_temp = np.vstack(Y_val_All)   
         y_pred_standardized_temp = np.vstack(y_pred_standardized_All) 
         y_true_standardized_temp  = Y_val_std   
+        rmse_StdY_temp = np.vstack(rmse_StdY_folds)
         cv_pls_model_list_temp= np.vstack(cv_pls_model_All)
         # 累積結果
         y_pred_list.append(y_pred_list_temp.T)
         y_true_list.append(y_val_list_temp.T)
         y_pred_standardized_list.append(y_pred_standardized_temp.T)
-        y_true_standardized_list.append(y_true_standardized_temp) 
+        y_true_standardized_list.append(y_true_standardized_temp)
+        rmse_StdY_list.append(rmse_StdY_temp.T) 
         cv_pls_model_list.append(cv_pls_model_list_temp.T)
         
     # 合併累積數據
@@ -197,6 +223,8 @@ def cross_validate_single_factor_NEW( X: np.ndarray, ch_unselect, Y_standardized
     y_pred_original = np.vstack(y_pred_list)
     y_pred_standardized_original = np.vstack(y_pred_standardized_list)
     y_true_standardized_original = np.vstack(y_true_standardized_list)
+    rmse_StdY_original = np.vstack(rmse_StdY_list)
+
     cv_pls_model_final = np.vstack(cv_pls_model_list)
     # 計算原始尺度指標（R²、RMSE）
     r2_original = []
@@ -210,10 +238,10 @@ def cross_validate_single_factor_NEW( X: np.ndarray, ch_unselect, Y_standardized
             r2_original.append(r2 if np.isfinite(r2) else 0.0)
             
             # RMSE（原始尺度）
-            rmse = np.sqrt(np.mean((y_true_standardized_original [:, i] - y_pred_standardized_original[:, i]) ** 2))
+            # rmse = np.sqrt(np.mean((y_true_standardized_original [:, i] - y_pred_standardized_original[:, i]) ** 2))
             #運算邏輯要確認先除在開根號??
-            rmse2 = np.mean(np.sqrt((y_true_standardized_original [:, i] - y_pred_standardized_original[:, i]) ** 2))
-            rmse_std.append(np.std(np.sqrt((y_true_standardized_original [:, i] - y_pred_standardized_original[:, i]) ** 2), ddof=1))
+            rmse = np.mean(rmse_StdY_original[:, i] )
+            rmse_std.append(np.std(rmse_StdY_original[:, i], ddof=1))
             rmse_original.append(rmse if np.isfinite(rmse) else 0.0)
         except Exception as e:
             print(f"警告：成分 {comp_cols[i]} 計算失敗: {e}")
@@ -388,8 +416,36 @@ def recommend_best_factor( factor_results: Dict[int, Dict[str, Any]]) -> int:
     
     return best_factor
 
+def recommend_best_factor_Std( factor_results: Dict[int, Dict[str, Any]]) -> int:
+        best_factor_Std = []
+        """推薦最佳Factor"""
+        if not factor_results:
+            return 1
+        
+        factors = sorted(factor_results.keys())
+        factor_evs = [(factor, factor_results[factor]['explained_variance_per_y']) 
+                      for factor in factors]
+        n_outputs = len(factor_evs[0][1])
+        for i in range(n_outputs):
+            max_ev = [
+                max(factor_evs, key=lambda x: x[1][i]) 
+            ]
+            # 檢查是否有EV相近的Factor（差異<0.01）
+            similar_factors = []
+            for k in range(len(factor_evs)):
+                if abs(factor_evs[k][1][i]- max_ev[0][1][i]) < 0.01:
+                    similar_factors.append(factor_evs[k])
+            if len(similar_factors) > 1:
+            # 選擇較小的Factor（簡潔性原則）
+                best_factor = min(similar_factors, key=lambda x: x[0])[0]
+            else:
+                best_factor = next(factor for factor, ev in factor_evs if ev[i] == max_ev[0][1][i]) 
+            best_factor_Std.append(best_factor)    
+        return np.array(best_factor_Std)
+
 def run_cross_validation_analysis( X: np.ndarray, ch_unselect, Y: np.ndarray, 
-                                         comp_cols: List[str],  
+                                         comp_cols: List[str], 
+                                         pred_all_Y, 
                                          max_factor: int = 16, 
                                          progress_callback: Optional[Callable] = None) -> Dict[str, Any]:
         """
@@ -429,7 +485,7 @@ def run_cross_validation_analysis( X: np.ndarray, ch_unselect, Y: np.ndarray,
             raise ValueError(f"篩選後資料點不足 ({n_samples}), 至少需 3 筆進行交叉驗證")
         
         # 動態確定最大Factor數量
-        if n_samples < 16:
+        if n_samples <= 16:
             max_factor = max(1, n_samples - 2)
         
         # 確保最大Factor不超過特徵數量
@@ -456,7 +512,7 @@ def run_cross_validation_analysis( X: np.ndarray, ch_unselect, Y: np.ndarray,
             
             # 交叉驗證單個Factor
             result = cross_validate_single_factor_NEW(
-                X_valid, ch_unselect, Y_standardized, Y_valid, factor, comp_cols
+                X_valid, ch_unselect, Y_standardized, Y_valid, factor, comp_cols,pred_all_Y 
             )
             result = cross_validate_single_factor_no_scaleY_NEW(
                 result, X_valid, ch_unselect, Y_standardized, Y_valid, factor, comp_cols
@@ -466,6 +522,7 @@ def run_cross_validation_analysis( X: np.ndarray, ch_unselect, Y: np.ndarray,
         
         # 推薦最佳Factor
         best_factor = recommend_best_factor(factor_results)
+        best_factor_Std = recommend_best_factor_Std(factor_results)
         
         # 存儲結果
         results: Dict[str, Dict[str, Any]] = {}  # 儲存交叉驗證結果
@@ -474,6 +531,7 @@ def run_cross_validation_analysis( X: np.ndarray, ch_unselect, Y: np.ndarray,
         results[cv_key] = {
             'factor_results': factor_results,
             'best_factor': best_factor,
+            'best_factor_StdY':best_factor_Std,
             'max_factor': max_factor,
             'n_samples': n_samples,
             'comp_cols': comp_cols,

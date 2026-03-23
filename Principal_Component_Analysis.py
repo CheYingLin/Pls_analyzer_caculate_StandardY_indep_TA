@@ -7,11 +7,13 @@ class principal_component_analysis:
     """導入外部畫圖函式"""
     def __init__(self,):
         pass
-    def run_PCA_analyzer(self, spectra_data: np.ndarray ,Training_has_ta:bool):
-        # 假设spectra_data为预处理后的光谱数据集，维度为样本数 x 波长数
+    def run_PCA_analyzer(self, spectra_data: np.ndarray ,algorithm_name: str ,Training_has_ta:bool):
+        mask = ~(np.isnan(spectra_data).any(axis=1))
+        X_valid = spectra_data[mask]
+                # 假设spectra_data为预处理后的光谱数据集，维度为样本数 x 波长数
         # 数据标准化
         scaler = StandardScaler()
-        spectra_data_std = scaler.fit_transform(spectra_data)
+        spectra_data_std = scaler.fit_transform(X_valid)
 
         # 执行PCA
         pca = PCA(n_components=0.95) # 选择累积贡献率为95%的主成分
@@ -44,30 +46,32 @@ class principal_component_analysis:
         pc2_loading = np.abs(loadings[:, 1])
         idx_pc2 = np.argsort(pc2_loading)[::-1]
         if not Training_has_ta:
-            print(f"建議不要剔除通道{(top_wavelengths)+1}")           
+            print(f"{algorithm_name}建議不要剔除通道{(top_wavelengths)+1}")           
             # print(f"建議剔除通道{np.sort(idx_pc1[-10::])+1}")
             print(f"建議1:剔除通道{(idx_pc1[-10::])+1}")                       
             # print(f"建議剔除通道{np.sort(idx_pc2[-10::])+1}")
             print(f"建議2:剔除通道{(idx_pc2[-10::])+1}")
         else:
-            print(f"建議不要剔除通道{(top_wavelengths)+1}")
+            print(f"{algorithm_name}建議不要剔除通道{(top_wavelengths)+1}")
             print(f"建議1:剔除通道{(idx_pc1[-10::])+1}")
             print(f"建議2:剔除通道{(idx_pc2[-10::])+1}")
         return spectra_pca
     
-    def vip(self,factor_result, factor_table, del_idx,Training_has_ta:bool):#VariableImportanceinProjection
+    def vip(self,multi_algorithm_results, algorithm_name, del_idx,Training_has_ta:bool):#VariableImportanceinProjection
+        factor_result= multi_algorithm_results[f"算法{algorithm_name}_(PLSR)"]['pls']['factor_results']
+        factor_table = multi_algorithm_results[f"算法{algorithm_name}_(PLSR)"]['cv']['best_factor_StdY']
         vip_scores_all= []
         important_idx_ori_all = []
         important_idx_all = []
         if not Training_has_ta:
             all_idx = np.arange(0, 36) # [0,1,2,...,35] 
         else:
-            all_idx = np.arange(1, 37)       
+            all_idx = np.arange(0, 37)       
         keep_idx=[]
 
         for idx in range(len(factor_table)):
             if len(del_idx) > 0:
-                keep_idx.append(np.delete(all_idx, del_idx[idx]))
+                keep_idx.append(np.delete(all_idx, del_idx[idx].astype(int)))
             else: 
                 keep_idx.append(all_idx)
             model_info = factor_result[factor_table[idx]]
@@ -82,7 +86,7 @@ class principal_component_analysis:
             total_s = np.sum(s)
 
             vip_scores = np.sqrt(p * (W**2 @ s) / total_s)
-            important_idx = np.where(vip_scores > 1)[0]
+            important_idx = np.where(vip_scores > 0.8)[0]
             important_idx_ori_all.append(important_idx)
             vip_scores_all.append(vip_scores)
             important_idx_tmp = keep_idx[idx][important_idx]
@@ -114,7 +118,7 @@ class principal_component_analysis:
                     ha='left',
                     va='bottom'
                 )
-            ax.plot([1, max(keep_idx[idx])],[1, 1],linestyle='--',color='k')
+            ax.plot([1, max(keep_idx[idx])],[0.8, 0.8],linestyle='--',color='k')
             # xlabel / ylabel
             ax.set_xlabel('Predictor Variables')
             ax.set_ylabel('VIP Scores')

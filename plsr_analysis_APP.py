@@ -9,21 +9,21 @@ class PLSR_Analysis:
     def __init__(self,):
         pass
 
-    def _preprocess_data(self, X: np.ndarray, Y: np.ndarray) -> Tuple[np.ndarray, np.ndarray, int]:
-        """數據預處理：移除NaN並檢查數據充足性"""
-        mask = ~(np.isnan(X).any(axis=1) | np.isnan(Y).any(axis=1))
-        X_valid = X[mask]
-        Y_valid = Y[mask]
+    # def _preprocess_data(self, X: np.ndarray, Y: np.ndarray) -> Tuple[np.ndarray, np.ndarray, int]:
+    #     """數據預處理：移除NaN並檢查數據充足性"""
+    #     mask = ~(np.isnan(X).any(axis=1) | np.isnan(Y).any(axis=1))
+    #     X_valid = X[mask]
+    #     Y_valid = Y[mask]
         
-        n_samples = X_valid.shape[0]
-        if n_samples < 2:
-            raise ValueError(f"篩選後資料點不足 ({n_samples}), 至少需 2 筆")
+    #     n_samples = X_valid.shape[0]
+    #     if n_samples < 2:
+    #         raise ValueError(f"篩選後資料點不足 ({n_samples}), 至少需 2 筆")
         
-        return X_valid, Y_valid, n_samples
+    #     return X_valid, Y_valid, n_samples
     
     def _determine_max_factor( self, n_sample: int, n_features: int, max_factor: int = 16) -> int:
         """確定最大Factor數量（與交叉驗證邏輯一致）"""
-        if n_sample < 16:
+        if n_sample <= 16:
             max_factor = max(1, n_sample - 2)
         max_factor = min(max_factor, n_features)
         # max_factor = min(max_factor-2, n_features)
@@ -49,7 +49,7 @@ class PLSR_Analysis:
         pls_model_All = []
         for i in range(Y.shape[1]):
             mask = np.ones(X.shape[1], dtype=bool)
-            if not ch_unselect:
+            if not ch_unselect or ch_unselect[i].size==0:
                 pass
             else:
                 mask[ch_unselect[i]] = False 
@@ -73,13 +73,14 @@ class PLSR_Analysis:
         Y_pred_All = []
         Y_val_All = []
         pls_model_All = []
+        pls = PLSRegression(n_components = n_component, scale=False)
         for i in range(Y.shape[1]):
             mask = np.ones(X.shape[1], dtype=bool)
-            if not ch_unselect:
+            if any(arr.size == 0 for arr in ch_unselect) or not ch_unselect :
                 pass
             else:
                 mask[ch_unselect[0]] = False  #此處0保留都不可篩選，通道應該是不隨不同濃度液體篩選
-            pls = PLSRegression(n_components = n_component, scale=False)
+            
             pls.fit(X[:,mask], Y)
             y_pred = pls.predict(X[:,mask])
             Y_pred_All.append(y_pred[:, i])
@@ -91,12 +92,12 @@ class PLSR_Analysis:
         cv_pls_model_list= np.vstack(pls_model_All) 
         return cv_pls_model_list.T, y_pred_list.T, scalers_y    
 
-    def _fit_single_factor( self, X: np.ndarray, Y: np.ndarray, n_component: int) -> Tuple[PLSRegression, np.ndarray]:
-        """單個Factor的PLS建模"""
-        pls = PLSRegression(n_components=n_component, scale=False)
-        pls.fit(X, Y)
-        Y_pred = pls.predict(X)
-        return pls, Y_pred
+    # def _fit_single_factor( self, X: np.ndarray, Y: np.ndarray, n_component: int) -> Tuple[PLSRegression, np.ndarray]:
+    #     """單個Factor的PLS建模"""
+    #     pls = PLSRegression(n_components=n_component, scale=False)
+    #     pls.fit(X, Y)
+    #     Y_pred = pls.predict(X)
+    #     return pls, Y_pred
     
     def _calculate_regression_stats( self,Y_true: np.ndarray, Y_pred: np.ndarray, 
                                     comp_cols: List[str]) -> Dict[str, Dict[str, float]]:
@@ -155,7 +156,9 @@ class PLSR_Analysis:
         """
         執行PLS Factor掃描分析
         """
-        X_valid, Y_valid, n_samples = self._preprocess_data(X, Y)
+        # X_valid, Y_valid, n_samples = self._preprocess_data(X, Y)
+        X_valid, Y_valid = X,Y
+        n_samples = X.shape[0]
         n_features = X_valid.shape[1]
         max_factor = self._determine_max_factor(n_samples, n_features, max_factor)
 
@@ -188,14 +191,16 @@ class PLSR_Analysis:
 
             }
 
-            result = {
-                    'factor_results': factor_results,
-                    'X_valid': X_valid,
-                    'Y_valid': Y_valid,
-                    'max_factor': max_factor,
-                    'comp_cols': comp_cols,
-                    'n_samples': n_samples
-                }
+        result = {
+                'factor_results': factor_results,
+                'X_valid': X_valid,
+                'Y_valid': Y_valid,
+                'max_factor': max_factor,
+                'comp_cols': comp_cols,
+                'n_samples': n_samples
+            }
             
             
         return result
+    
+#===============main=====================
